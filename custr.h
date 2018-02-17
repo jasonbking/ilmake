@@ -59,8 +59,6 @@ int custr_append(custr_t *, const char *);
 int custr_append_printf(custr_t *, const char *, ...);
 int custr_append_vprintf(custr_t *, const char *, va_list);
 
-int custr_append_line(custr_t *, FILE *);
-
 int custr_insertc(custr_t *, size_t, char);
 int custr_insert(custr_t *, size_t, const char *);
 int custr_insert_printf(custr_t *, size_t, const char *, ...);

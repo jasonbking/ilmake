@@ -13,35 +13,36 @@
  * Copyright 2017 Jason King
  */
 
-#ifndef _UTIL_H
-#define	_UTIL_H
+#ifndef _MAKE_H
+#define	_MAKE_H
 
-#include <libintl.h>
-#include <sys/types.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define	_(x) gettext(x)
+typedef enum make_style {
+	MS_ILLUMOS,
+	MS_SYSV,
+	MS_POSIX,
+	MS_BSD,
+	MS_GNU
+} make_style_t;
 
-struct custr_memops;
-extern const struct custr_memops *cu_memops;
+typedef enum make_debug_flags {
+	MDF_NONE	= 0,
+	MDF_PARSE	= (1U << 1),
+} make_debug_flags_t;
 
-boolean_t uadd_overflow(size_t, size_t, size_t *);
-boolean_t umul_overflow(size_t, size_t, size_t *);
-
-void *zalloc(size_t);
-void *xcalloc(size_t, size_t);
-void *xrealloc(void *, size_t, size_t);
-char *xprintf(const char *, ...);
-char *xstrdup(const char *);
-
-void strfree(char *);
-void cfree(void *, size_t, size_t);
+typedef struct make {
+	make_style_t		mk_style;
+	FILE			*mk_debug;
+	make_debug_flags_t	mk_debug_flags;
+} make_t;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _UTIL_H */
+#endif /* _MAKE_H */

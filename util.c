@@ -14,10 +14,17 @@
 #define	MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
-static boolean_t
+boolean_t
 umul_overflow(size_t a, size_t b, size_t *cp)
 {
 	*cp = a * b;
+	return ((*cp / a != b) ? B_TRUE : B_FALSE);
+}
+
+boolean_t
+uadd_overflow(size_t a, size_t b, size_t *cp)
+{
+	*cp = a + b;
 	return ((*cp < a || *cp < b) ? B_TRUE : B_FALSE);
 }
 

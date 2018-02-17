@@ -20,55 +20,37 @@
 extern "C" {
 #endif
 
+struct custr;
 struct input;
 
-enum token_type {
-	TOK_BEGIN,		/* .BEGIN */
-	TOK_DEFAULT,		/* .DEFAULT */
-	TOK_DEL_ON_ERROR,
-	TOK_END,
-	TOK_ERROR,
-	TOK_IGNORE,
-	TOK_INCLUDES,
-	TOK_INTERRUPT,
-	TOK_LIBS,
-	TOK_META,
-	TOK_MFLAGS,
-	TOK_MAIN,
-	TOK_NOEXPORT,
-	TOK_NOMETA,
-	TOK_NOMETACMP,
-	TOK_NOPATH,
-	TOK_NOT,
-	TOK_NOT_PARALLEL,
-	TOK_NULL,
-	TOK_OBJDIR,
-	TOK_ORDER,
-	TOK_PARALLEL,
-	TOK_PATH,
-	TOK_PHONY,
-	TOK_POSIX,
-	TOK_PRECIOUS,
-	TOK_SHELL,
-	TOK_SILENT,
-	TOK_SINGLESHELL,
-	TOK_STALE,
-	TOK_SUFFIXES,
-	TOK_WAIT,
-	TOK_ATTRIBUTE,
-};
-typedef enum token_type token_type_t;
+typedef enum token_type {
+	TOK_TARGET,
+	TOK_RECIPE,
+	TOK_VARIABLE,
+	TOK_COLON,		/* : */
+	TOK_COLONCOLON,		/* :: */
+	TOK_PLUS,		/* + */
+	TOK_EQUALS,		/* = */
+	TOK_COLONEQ,		/* := */
+	TOK_PLUSEQ,		/* += */
+	TOK_QUESEQ,		/* ?= */
+	TOK_PIPE,		/* | */
+	TOK_SEMICOLON,		/* ; */
+	TOK_BANGEQ,		/* != */
+	TOK_BANG,		/* ! */
+	TOK_EOL,
+} token_type_t;
 
-struct token {
+typedef struct token {
 	token_type_t	tok_type;
-	char		*tok_source;
+	struct input	*tok_src;
 	size_t		tok_line;	/* 0 based */
 	size_t		tok_col;	/* 0 based */
-	union {
-		char	*toku_str;
-	} toku;
-};
-#define	tok_str	toku.toku_str
+	char		*tok_val;
+} token_t;
+
+token_t	*tok_new(token_type_t, input_t *, size_t, size_t, struct custr *);
+void	tok_free(token_t *);
 
 #ifdef __cplusplus
 }

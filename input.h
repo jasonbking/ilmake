@@ -23,46 +23,41 @@
 extern "C" {
 #endif
 
-struct custr;
+struct input;
+struct input_iter;
+typedef struct input input_t;
+typedef struct input_iter input_iter_t;
 
-typedef struct input {
-	char		*in_filename;
-	char		*in_buf;
-	size_t		in_buflen;	/* Size of valid content */
-	size_t		in_bufalloc;	/* Amount allocated */
-	size_t		*in_lines;
-	size_t		in_numlines;
-	size_t		in_linealloc;
-} input_t;
+input_t		*input_new(const char *);
+input_t		*input_fnew(const char *, FILE *);
+void		input_free(input_t *);
+size_t		input_numlines(const input_t *);
+const char	*input_line(const input_t *, size_t);
+const char	*input_name(const input_t *);
 
+/*
+ * Iteration of input_t lines, with optional stacking of inputs (for handling
+ * included files.  Since these are most likely short lived, unlike
+ * input_t's, these can be created on the stack.
+ */
+
+/* The types of events that can happen during iteration */
 typedef enum iter_event {
-	IEVT_PUSH,
-	IEVT_POP,
+	IEVT_START,		/* Start of iteration */
+	IEVT_PUSH,		/* New file is pushed */
+	IEVT_POP,		/* File is popped, or finished */
+	IEVT_END,		/* Done with iteration */
 } iter_event_t;
+typedef void (*iter_cb_t)(input_iter_t *, iter_event_t, void *);
 
-typedef struct iter_item {
-	struct input	*item_in;
-	size_t		item_line;
-} iter_item_t;
-
-typedef void (*iter_cb_t)(iter_event_t, input_t *, void *);
-typedef struct input_iter {
-	iter_item_t	*ii_items;
-	size_t		ii_n;
-	size_t		ii_alloc;
-	iter_cb_t	ii_evtcb;
-	void		*ii_arg;
-} input_iter_t;
-
-input_t *input_alloc(void);
-input_t *input_init(input_t *, FILE *, const char *);
-void input_release(input_t *);
-void input_free(input_t *);
-
-input_iter_t	*input_iter(input_t *, iter_cb_t, void *);
-boolean_t	iter_line(input_iter_t *, struct custr *);
+input_iter_t	*iter_new(input_t *, iter_cb_t, void *);
+void		iter_free(input_iter_t *);
+const char	*iter_line(input_iter_t *);
 void		iter_push(input_iter_t *, input_t *);
 void		iter_pop(input_iter_t *);
+input_t		*iter_input(const input_iter_t *);
+size_t		iter_lineno(const input_iter_t *);
+size_t		iter_depth(const input_iter_t *);
 
 #ifdef __cplusplus
 }

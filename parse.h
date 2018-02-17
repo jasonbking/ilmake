@@ -10,38 +10,25 @@
  */
 
 /*
- * Copyright 2017 Jason King
+ * Copyright 2018 Jason King
  */
 
-#ifndef _UTIL_H
-#define	_UTIL_H
+#ifndef _PARSE_H
+#define	_PARSE_H
 
-#include <libintl.h>
 #include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define	_(x) gettext(x)
+struct make;
+struct input;
 
-struct custr_memops;
-extern const struct custr_memops *cu_memops;
-
-boolean_t uadd_overflow(size_t, size_t, size_t *);
-boolean_t umul_overflow(size_t, size_t, size_t *);
-
-void *zalloc(size_t);
-void *xcalloc(size_t, size_t);
-void *xrealloc(void *, size_t, size_t);
-char *xprintf(const char *, ...);
-char *xstrdup(const char *);
-
-void strfree(char *);
-void cfree(void *, size_t, size_t);
+boolean_t parse_input(struct make *, struct input *);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _UTIL_H */
+#endif /* _MAKE_H */

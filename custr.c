@@ -21,14 +21,13 @@
 #include <err.h>
 #include <string.h>
 #include <strings.h>
-#include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>
-#include <sys/ccompile.h>
 #include <sys/debug.h>
 #include <sys/errno.h>
 
 #include "custr.h"
+#include "util.h"
 
 #ifndef __unused
 #define	__unused __attribute__((__unused__))
@@ -56,22 +55,6 @@ static custr_memops_t custr_default_memops = {
 	.cmo_alloc = cua_def_alloc,
 	.cmo_free = cua_def_free
 };
-
-static boolean_t
-uadd_overflow(size_t a, size_t b, size_t *res)
-{
-	*res = a + b;
-	return ((*res < a || *res < b) ? B_TRUE : B_FALSE);
-}
-
-static boolean_t
-umul_overflow(size_t a, size_t b, size_t *res)
-{
-	*res = a * b;
-	if (*res / a != b)
-		return (B_FALSE);
-	return (B_TRUE);
-}
 
 static void *
 cua_def_alloc(size_t len)
@@ -254,23 +237,6 @@ custr_append(custr_t *cus, const char *name)
 
 	(void) strlcat(cus->cus_data, name, cus->cus_datalen);
 	cus->cus_strlen += len;
-	return (0);
-}
-
-int
-custr_append_line(custr_t *cus, FILE *f)
-{
-	int c;
-
-	do {
-		if ((c = fgetc(f)) == EOF)
-			break;
-
-		if (custr_appendc(cus, c) == -1)
-			return (-1);
-
-	} while (c != '\n');
-
 	return (0);
 }
 
