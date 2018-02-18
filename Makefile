@@ -3,7 +3,6 @@ OBJS =	custr.o	\
 	input.o \
 	make.o	\
 	parse.o	\
-	token.o	\
 	util.o
 
 SRCS = $(OBJS:%.o=%.c)

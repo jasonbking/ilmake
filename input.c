@@ -22,6 +22,7 @@
 #include <sys/debug.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/queue.h>
 #include <umem.h>
 #include <unistd.h>
 
@@ -30,20 +31,24 @@
 #include "util.h"
 
 /*
- * An input file, indexed by line.  The entire file is stored as a series of
- * NUL-terminated strings inside a single contiguous buffer (in_buf).  We
- * then store pointers to the start of each string in in_line[linenum].
+ * An input file.  in_buf points to the contents of the file, and in_bufend
+ * points to just after the end of the contents.  To iterate through
+ * the contents, one could do:
+ *	for (ptr = in->in_buf; ptr < in->in_bufend; ptr++) { ... }
  *
- * The entire contents of the file is retained for the duration of parsing,
- * this hopefully allows for the display of more context for any parsing
- * errors.
+ * In addition, we keep pointers to the start of each line (in_line[linenum])
+ * to facilitate either iteration by line, or for determining the position
+ * of an offset into the file in terms of lines and columns.
  */
+
+LIST_HEAD(input_list, input);
 struct input {
+	LIST_ENTRY(input) in_link;
 	char		*in_filename;
-	char		*in_buf;
-	size_t		in_buflen;	/* Size of valid content */
+	const char	*in_buf;
+	const char	*in_bufend;	/* address just past end of buf */
 	size_t		in_bufalloc;	/* Amount allocated */
-	char		**in_line;
+	const char	**in_line;
 	size_t		in_numlines;
 };
 
@@ -58,6 +63,7 @@ struct input_iter {
 	size_t		ii_alloc;
 	iter_cb_t	ii_evtcb;
 	void		*ii_arg;
+	custr_t		*ii_line;
 };
 
 struct line_index {
@@ -69,6 +75,7 @@ struct line_index {
 #define	LINEPTR_CHUNK		128U
 #define	ITER_DEFAULT_DEPTH	8U
 
+static struct input_list inputs = LIST_HEAD_INITIALIZER(input);
 static boolean_t input_read(input_t *, FILE *);
 
 input_t *
@@ -87,6 +94,8 @@ input_new(const char *filename)
 		goto fail;
 
 	(void) fclose(f);
+
+	LIST_INSERT_HEAD(&inputs, in, in_link);
 	return (in);
 
 fail:
@@ -108,6 +117,7 @@ input_fnew(const char *filename, FILE *f)
 		return (NULL);
 	}
 
+	LIST_INSERT_HEAD(&inputs, in, in_link);
 	return (in);
 }
 
@@ -118,8 +128,8 @@ input_free(input_t *in)
 		return;
 
 	strfree(in->in_filename);
-	umem_free(in->in_buf, in->in_bufalloc);
-	umem_free(in->in_line, in->in_numlines * sizeof (char *));
+	umem_free((void *)in->in_buf, in->in_bufalloc);
+	umem_free((void *)in->in_line, (in->in_numlines + 1) * sizeof (char *));
 	umem_free(in, sizeof (*in));
 }
 
@@ -127,17 +137,16 @@ input_free(input_t *in)
  * If f is a regular file, use the rounded up file size as a hint for
  * the initial size of the buffer, otherwise use INPUT_BLOCK_SIZE.
  */
-static boolean_t
-guess_size(input_t *in, FILE *f)
+static char *
+guess_size(const char *name, FILE *f, size_t *lenp)
 {
 	size_t len = INPUT_BLOCK_SIZE;
 	int fd = fileno(f);
 	struct stat sb = { 0 };
 
-
 	if (fstat(fd, &sb) == -1) {
-		warn("%s", in->in_filename);
-		return (B_FALSE);
+		warn("%s", name);
+		return (NULL);
 	}
 
 	if (!S_ISREG(sb.st_mode))
@@ -148,107 +157,72 @@ guess_size(input_t *in, FILE *f)
 	len *= INPUT_BLOCK_SIZE;
 
 done:
-	in->in_buf = zalloc(len);
-	in->in_bufalloc = len;
-	return (B_TRUE);
+	*lenp = len;
+	return (zalloc(len));
 }
 
 static void
-get_line(custr_t *cus, FILE *f)
+index_input(input_t *in)
 {
-	int c;
+	const char *p = NULL;
+	size_t lines = 0;
 
-	custr_reset(cus);
+	if (in->in_buf == in->in_bufend)
+		return;
 
-	do {
-		if ((c = fgetc(f)) == EOF)
-			break;
-		VERIFY0(custr_appendc(cus, c));
-	} while (c != '\n');
-}
-
-void
-check_space(input_t *in, struct line_index *idx, custr_t *line)
-{
-	size_t linelen = custr_len(line);
-	size_t newamt;
-
-	if (in->in_numlines + 1 >= idx->li_alloc) {
-		size_t oldamt = idx->li_alloc * sizeof (size_t);
-
-		/* newamt = idx->li_alloc + LINEPTR_CHUNK */
-		if (uadd_overflow(idx->li_alloc, LINEPTR_CHUNK, &newamt)) {
-			errx(EXIT_FAILURE, _("%s: line number overflow"),
-			    in->in_filename);
-		}
-
-		/* newamt *= sizeof (size_t) */
-		if (umul_overflow(newamt, sizeof (size_t), &newamt)) {
-			errx(EXIT_FAILURE, _("%s: file size is too large"),
-			    in->in_filename);
-		}
-
-		idx->li_offsets = xrealloc(idx->li_offsets, oldamt, newamt);
-		idx->li_alloc += LINEPTR_CHUNK;
+	p = in->in_buf;
+	while (p != NULL && p < in->in_bufend) {
+		lines++;
+		if ((p = strchr(p, '\n')) != NULL)
+			p++;
 	}
 
-	/* Make sure there's space for the line plus a terminating NUL */
-	if (in->in_buflen + linelen + 1 >= in->in_bufalloc) {
-		/* newamt = in->in_bufalloc + INPUT_BLOCK_SIZE */
-		if (umul_overflow(in->in_bufalloc, INPUT_BLOCK_SIZE, &newamt)) {
-			errx(EXIT_FAILURE, _("%s: file size is too large"),
-			    in->in_filename);
-		}
+	in->in_line = xcalloc(lines + 1, sizeof (char *));
+	in->in_numlines = lines;
 
-		in->in_buf = xrealloc(in->in_buf, in->in_bufalloc, newamt);
-		in->in_bufalloc = newamt;
+	p = in->in_buf;
+	lines = 0;
+	while (p != NULL && p < in->in_bufend) {
+		in->in_line[lines++] = p;
+		if ((p = strchr(p, '\n')) != NULL)
+			p++;
 	}
+
+	in->in_line[lines] = in->in_bufend;
 }
 
 static boolean_t
 input_read(input_t *in, FILE *f)
 {
-	custr_t *line = NULL;
-	struct line_index idx = { 0 };
-	size_t pos = 0, len = 0;
-	boolean_t ret = B_TRUE;
+	char *buf = NULL;
+	size_t buflen = 0;
+	size_t total = 0, amt = 0;
 
-	VERIFY0(custr_alloc(&line, cu_memops));
-	guess_size(in, f);
+	if ((buf = guess_size(in->in_filename, f, &buflen)) == NULL)
+		return (B_FALSE);
 
-	do {
-		get_line(line, f);
-		len = custr_len(line);
-		if (len == 0)
-			break;
+	while (!feof(f) && !ferror(f)) {
+		if (total + 1 > buflen) {
+			amt = buflen + INPUT_BLOCK_SIZE;
+			buf = xrealloc(buf, buflen, amt);
+			buflen = amt;
+		}
+		ASSERT3U(buflen, >, total);
 
-		check_space(in, &idx, line);
-
-		idx.li_offsets[in->in_numlines++] = pos;
-		(void) memcpy(in->in_buf + pos, custr_cstr(line), len);
-		pos += len + 1;
-	} while (!feof(f) && !ferror(f));
-
-	if (ferror(f)) {
-		ret = B_FALSE;
-		warn("%s", in->in_filename);
-		goto done;
+		amt = buflen - total;
+		total += fread(buf + total, 1, amt, f);
 	}
 
-	in->in_buflen = pos;
-	custr_free(line);
+	if (ferror(f)) {
+		warn("%s", in->in_filename);
+		umem_free(buf, buflen);
+		return (B_FALSE);
+	}
 
-	/*
-	 * Now that in_buf is populated, populate line pointers from the
-	 * saved offsets.
-	 */
-	in->in_line = xcalloc(in->in_numlines, sizeof (char *));
-	for (size_t i = 0; i < in->in_numlines; i++)
-		in->in_line[i] = in->in_buf + idx.li_offsets[i];
-
-done:
-	umem_free(idx.li_offsets, idx.li_alloc * sizeof (size_t));
-	return (ret);
+	in->in_buf = buf;
+	in->in_bufalloc = buflen;
+	in->in_bufend = in->in_buf + total;
+	index_input(in);
 }
 
 size_t
@@ -271,6 +245,32 @@ input_name(const input_t *in)
 	return (in->in_filename);
 }
 
+boolean_t
+input_pos(const input_t *in, const char *p, size_t *lp, size_t *cp)
+{
+	size_t i, line = 0, col = 0;
+
+	if (p == NULL || p < in->in_buf || p >= in->in_bufend)
+		return (B_FALSE);
+
+	for (i = 0; i < in->in_numlines; i++) {
+		if (in->in_line[i + 1] < p)
+			continue;
+
+		line = i;
+		break;
+	}
+
+	col = (size_t)(p - in->in_line[line]);
+
+	if (lp != NULL)
+		*lp = line;
+	if (cp != NULL)
+		*cp = col;
+
+	return (B_TRUE);
+}
+
 input_iter_t *
 iter_new(input_t *in, iter_cb_t cb, void *arg)
 {
@@ -278,6 +278,8 @@ iter_new(input_t *in, iter_cb_t cb, void *arg)
 
 	iter->ii_evtcb = cb;
 	iter->ii_arg = arg;
+
+	VERIFY0(custr_alloc(&iter->ii_line, cu_memops));
 
 	if (iter->ii_evtcb != NULL)
 		iter->ii_evtcb(iter, IEVT_START, iter->ii_arg);
@@ -303,15 +305,29 @@ iter_line(input_iter_t *iter)
 	input_t *in = NULL;
 	const char *p = NULL;
 
+	custr_reset(iter->ii_line);
+
 	while (iter->ii_n > 0) {
 		item = &iter->ii_items[iter->ii_n - 1];
 		in = item->item_in;
 
-		p = input_line(in, item->item_line++);
-		if (p != NULL)
-			return (p);
+		/* End of file, pop and try again */
+		if ((p = input_line(in, item->item_line++)) == NULL) {
+			iter_pop(iter);
+			continue;
+		}
 
-		iter_pop(iter);
+		/* Copy line into iter->ii_line and return */
+		const char *end = input_line(in, item->item_line);
+		if (end == NULL)
+			end = in->in_bufend;
+
+		while (p < end) {
+			VERIFY0(custr_appendc(iter->ii_line, *p));
+			p++;
+		}
+
+		return (custr_cstr(iter->ii_line));
 	}
 
 	ASSERT3U(iter->ii_n, ==, 0);
