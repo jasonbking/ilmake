@@ -38,7 +38,9 @@
  *
  * In addition, we keep pointers to the start of each line (in_line[linenum])
  * to facilitate either iteration by line, or for determining the position
- * of an offset into the file in terms of lines and columns.
+ * of an offset into the file in terms of lines and columns.  We also store
+ * the location of in_bufend in in_line[in_numlines] so consumers can obtain
+ * the full range.
  */
 
 LIST_HEAD(input_list, input);
@@ -234,7 +236,7 @@ input_numlines(const input_t *in)
 const char *
 input_line(const input_t *in, size_t linenum)
 {
-	if (linenum < in->in_numlines)
+	if (linenum <= in->in_numlines)
 		return (in->in_line[linenum]);
 	return (NULL);
 }

@@ -110,6 +110,13 @@ cfree(void *p, size_t nelem, size_t elsize)
 	umem_free(p, len);
 }
 
+void
+append_range(const char *p, size_t len, custr_t *str)
+{
+	for (size_t i = 0; i < len; i++)
+		VERIFY0(custr_appendc(str, p[i]));
+}
+
 static const custr_memops_t i_memops = {
 	.cmo_alloc = zalloc,
 	.cmo_free = umem_free

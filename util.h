@@ -25,11 +25,14 @@ extern "C" {
 
 #define	_(x) gettext(x)
 
+struct custr;
 struct custr_memops;
 extern const struct custr_memops *cu_memops;
 
 boolean_t uadd_overflow(size_t, size_t, size_t *);
 boolean_t umul_overflow(size_t, size_t, size_t *);
+
+void append_range(const char *, size_t, struct custr *);
 
 void *zalloc(size_t);
 void *xcalloc(size_t, size_t);

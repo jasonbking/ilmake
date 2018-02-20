@@ -9,6 +9,7 @@
 #include "input.h"
 #include "make.h"
 #include "parse.h"
+#include "token.h"
 #include "util.h"
 
 #ifdef DEBUG
@@ -44,13 +45,16 @@ nofail_cb(void)
 }
 #endif
 
+void tok_parse(make_t *mk, input_t *);
+
 int
 main(int argc, char **argv)
 {
 	input_t *in = NULL;
 	make_t mk = {
 		.mk_debug = stderr,
-		.mk_debug_flags = MDF_PARSE
+		.mk_debug_flags = MDF_PARSE,
+		.mk_style = MS_SYSV,
 	};
 
 	umem_nofail_callback(nofail_cb);
@@ -65,6 +69,8 @@ main(int argc, char **argv)
 		in = input_new(argv[i]);
 
 		parse_input(&mk, in);
+		printf("-------\n");
+		tokenize(&mk, in);
 		input_free(in);
 	}
 

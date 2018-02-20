@@ -16,41 +16,79 @@
 #ifndef _TOKEN_H
 #define	_TOKEN_H
 
+#include <stdio.h>
+#include <sys/types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct custr;
 struct input;
+struct make;
 
 typedef enum token_type {
-	TOK_TARGET,
+	TOK_STRING,
 	TOK_RECIPE,
 	TOK_VARIABLE,
 	TOK_COLON,		/* : */
 	TOK_COLONCOLON,		/* :: */
 	TOK_PLUS,		/* + */
 	TOK_EQUALS,		/* = */
+	TOK_EQUALSEQUALS,	/* == */
 	TOK_COLONEQ,		/* := */
 	TOK_PLUSEQ,		/* += */
-	TOK_QUESEQ,		/* ?= */
+	TOK_QUESEQ,		/* ?= mmm... queseq */
 	TOK_PIPE,		/* | */
 	TOK_SEMICOLON,		/* ; */
 	TOK_BANGEQ,		/* != */
 	TOK_BANG,		/* ! */
-	TOK_EOL,
+	TOK_COMMENT,
+	TOK_FOR,		/* .for */
+	TOK_IN,			/* in */
+	TOK_ENDFOR,		/* .endfor */
+	TOK_NL,			/* \n */
+	TOK_ERROR,		/* .error */
+	TOK_EXPORT,		/* .export */
+	TOK_EXPORT_ENV,		/* .export-env */
+	TOK_EXPORT_LIT,		/* .export-literal */
+	TOK_INFO,		/* .info */
+	TOK_UNDEF,		/* .undef */
+	TOK_UNEXPORT,		/* .unexport */
+	TOK_UNEXPORT_ENV,	/* .unexport-env */
+	TOK_WARNING,		/* .warning */
+	TOK_IF,			/* .if */
+	TOK_IFDEF,		/* .ifdef */
+	TOK_IFNDEF,		/* .ifndef */
+	TOK_IFMAKE,		/* .ifmake */
+	TOK_IFNMAKE,		/* .ifnmake */
+	TOK_ELSE,		/* .else */
+	TOK_ELIF,		/* .elif */
+	TOK_ELIFDEF,		/* .elifdef */
+	TOK_ELIFNDEF,		/* .elifndef */
+	TOK_ELIFNMAKE,		/* .elifnmake */
+	TOK_ENDIF,		/* .endif */
+	TOK_OR,			/* || */
+	TOK_AND,		/* && */
+	TOK_INCLUDE,		/* include, .include */
+	TOK_DEFINE,		/* define */
+	TOK_ENDDEF,		/* enddef */
+	TOK_IFEQ,		/* ifeq */
+	TOK_IFNEQ,		/* ifneq */
+	TOK_LPAREN,		/* ( */
+	TOK_RPAREN,		/* ) */
 } token_type_t;
 
 typedef struct token {
-	token_type_t	tok_type;
-	struct input	*tok_src;
-	size_t		tok_line;	/* 0 based */
-	size_t		tok_col;	/* 0 based */
-	char		*tok_val;
+	const char	*tok_val;	/* value */
+	const char	*tok_ws;	/* leading white space */
+	struct input	*tok_src;	/* source of token */
+	size_t		tok_len;	/* value length */
+	size_t		tok_wslen;	/* length of whitespace */
+	token_type_t	tok_type;	/* type */
 } token_t;
 
-token_t	*tok_new(token_type_t, input_t *, size_t, size_t, struct custr *);
-void	tok_free(token_t *);
+boolean_t tokenize(struct make *, struct input *);
+void tok_print_val(const token_t *, FILE *, boolean_t);
 
 #ifdef __cplusplus
 }

@@ -13,39 +13,29 @@
  * Copyright 2017 Jason King
  */
 
-#ifndef _MAKE_H
-#define	_MAKE_H
+#ifndef _VAR_H
+#define	_VAR_H
 
-#include <stdio.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* The maximum amount variables can nest, e.g. $($($(...))) */
-#define	VAR_NEST_MAX	16U
+struct custr;
+struct make;
 
-typedef enum make_style {
-	MS_ILLUMOS,
-	MS_SYSV,
-	MS_POSIX,
-	MS_BSD,
-	MS_GNU
-} make_style_t;
+typedef enum var_assign {
+	VAS_RECURSIVE,		/* var = value			*/
+	VAS_SIMPLE,		/* var := value (GNU/BSD)	*/
+	VAS_CONDITIONAL,	/* target := var = value (SysV) */
+} var_assign_t;
 
-typedef enum make_debug_flags {
-	MDF_NONE	= 0,
-	MDF_PARSE	= (1U << 1),
-} make_debug_flags_t;
-
-typedef struct make {
-	make_style_t		mk_style;
-	FILE			*mk_debug;
-	make_debug_flags_t	mk_debug_flags;
-} make_t;
+void		var_set(struct make *, const char *, const char *);
+boolean_t	var_get(struct make *, const char *, struct custr *);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _MAKE_H */
+#endif /* _VAR_H */

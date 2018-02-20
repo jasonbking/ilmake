@@ -34,6 +34,7 @@ void		input_free(input_t *);
 size_t		input_numlines(const input_t *);
 const char	*input_line(const input_t *, size_t);
 const char	*input_name(const input_t *);
+boolean_t	input_pos(const input_t *, const char *, size_t *, size_t *);
 
 /*
  * Iteration of input_t lines, with optional stacking of inputs (for handling
